@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8292e6baccde49e1a26ce0dda0ed5dd, type: 3}
+  m_Name: Arrow
+  m_EditorClassIdentifier: 
+  model: {fileID: 10913, guid: 0000000000000000f000000000000000, type: 0}
+  homing: 0
+  sticky: 0
+  explodesOnExpire: 0
+  explosiveRadius: 0
+  explosiveDamage: 0
+  gravity: {x: 0, y: 0}
+  bounces: 0
+  pierces: 0
+  chains: 0
+  splitProjectile: {fileID: 0}
+  splitTime: 0
+  splitCount: 0
+  splitAngleMin: 0
+  splitAngleMax: 0
+  speed: 20
+  damage: 1
+  knockback: 0
+  knockbackAngleMin: 0
+  knockbackAngleMax: 0
+  lifespan: 3

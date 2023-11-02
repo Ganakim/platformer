@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5cc60f59f69b649228d53cc75e171a7c, type: 3}
+  m_Name: Rifle
+  m_EditorClassIdentifier: 
+  model: {fileID: 7482667652216324306, guid: 0973357dd67a940fca9a828c4dd10ac8, type: 3}
+  projectile: {fileID: 11400000, guid: 782b4b4df614645c1961fac0f6e4907f, type: 2}
+  fireMode: 1
+  fireRate: 30
+  chargeTime: 1
+  holdTime: 0
+  chargePerShot: 1
+  fireOnExpire: 0
+  projectilesPerShot: 1
+  burstCount: 1
+  burstDelay: 0
+  spreadMin: 0
+  spreadMax: 0
+  ammoCapacity: 0
+  reloadTime: 0
