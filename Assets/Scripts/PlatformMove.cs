@@ -9,10 +9,10 @@ public class PlatformMove : MonoBehaviour
   public bool moving = true;
   [Range(-1, 1)]
   public int repeat;
-  [SerializeField] private int velocity = 1;
+  private int velocity = 1;
   public bool destroyOnFinish;
   public List<PlatformPathingSegment> path = new();
-  [SerializeField] private int segmentIndex;
+  private int segmentIndex;
   private PlatformPathingSegment targetSegment;
 
   private Vector2 initialPosition;
@@ -119,12 +119,12 @@ public class PlatformMove : MonoBehaviour
       return;
     }
     float degrees = targetSegment.rotateAroundBy;
-    if (targetSegment.rotateAroundBy < 0) degrees = Mathf.Clamp(degrees + targetSegment.speed * Time.deltaTime, targetSegment.rotateAroundBy, 0);
-    if (targetSegment.rotateAroundBy > 0) degrees = Mathf.Clamp(degrees - targetSegment.speed * Time.deltaTime, 0, targetSegment.rotateAroundBy);
+    if (targetSegment.rotateAroundBy < 0) degrees = Mathf.Clamp(degrees + targetSegment.speed * Time.deltaTime, targetSegment.rotateAroundBy, 0f);
+    if (targetSegment.rotateAroundBy > 0) degrees = Mathf.Clamp(degrees - targetSegment.speed * Time.deltaTime, 0f, targetSegment.rotateAroundBy);
     Quaternion rotation = transform.rotation;
     transform.RotateAround(targetSegment.rotateAround, -Vector3.forward, targetSegment.rotateAroundBy - degrees);
     transform.rotation = rotation;
-    targetSegment.rotateAroundBy -= degrees;
+    targetSegment.rotateAroundBy = degrees;
   }
 
   private void MoveSequenced()
@@ -145,6 +145,7 @@ public class PlatformMove : MonoBehaviour
   {
     segmentIndex = 0;
     targetSegment = path[segmentIndex].Copy();
+    foreach (Transform child in transform) if (child.gameObject.tag == "Player") child.SetParent(null);
     transform.position = initialPosition;
     transform.localScale = initialScale;
     transform.rotation = Quaternion.Euler(0, 0, initialRotation);
@@ -208,9 +209,8 @@ public class PlatformPathingSegment
     }
     else if (this.subType == SubType.Circular)
     {
+      this.centerAngle -= this.rotateAroundBy;
       this.rotateAroundBy *= -1;
-      this.centerAngle += 180;
-      if (this.centerAngle > 360) this.centerAngle -= 360;
       return this;
     }
     else

@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: 6876276102727795048}
   m_Layer: 0
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -174,24 +174,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0eb1d55323b714138be09d3b39703e76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hitboxSize: {x: 0.1, y: 0.9}
-  hitboxOffset: 0.5
+  handHitboxSize: {x: 0.5, y: 0.9}
+  feetHitboxSize: {x: 0.8, y: 0.1}
+  left: {fileID: 0}
+  right: {fileID: 0}
+  standingOn: {fileID: 0}
   canMove: 1
   moveSpeed: 15
-  acceleration: 0.2
+  acceleration: 0.3
   squishIntensity: {x: 0.2, y: 0.3}
+  crouchSpeed: 10
+  crouchAmount: 0
   airJumps: 1
+  jumps: 0
   jumpForce: 15
-  wallJumpForce: {x: 5, y: 5}
+  wallJumpForce: {x: 15, y: 15}
   wallClingSmearDelay: 1
-  clingTime: 0
-  clingDir: 0
   lastClingDir: 0
-  clingingTo: {fileID: 0}
-  bulletDahses: 1
-  bulletDashForce: 5
-  groundType: 0
-  standingOn: {fileID: 0}
+  clingTime: 0
+  bulletDashes: 1
+  bulletDashForce: 20
+  dashes: 0
 --- !u!198 &8331273567142600105
 ParticleSystem:
   m_ObjectHideFlags: 0

@@ -1,16 +1,24 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
   [Header("Hitboxes")]
-  public Vector2 hitboxSize;
-  public float hitboxOffset;
-  private RaycastHit2D feet;
-  private RaycastHit2D left;
-  private RaycastHit2D right;
+  public Vector2 handHitboxSize;
+  public Vector2 feetHitboxSize;
+  private Collider2D left;
+  private Collider2D right;
+  private Collider2D standingOn;
+  private enum GroundType
+  {
+    None,
+    Half,
+    Full
+  }
+  private GroundType groundType = GroundType.None;
 
   [Header("Physics")]
   public bool canMove;
@@ -18,182 +26,195 @@ public class PlayerController : MonoBehaviour
   [Range(0, 1)]
   public float acceleration;
   public Vector2 squishIntensity;
-  [Range(0, 1)]
+  public float crouchSpeed;
+  private float crouchAmount;
   private Vector2 movement;
 
+  [Header("Jumping")]
   public int airJumps;
   private int jumps;
   public float jumpForce;
   public Vector2 wallJumpForce;
 
+  [Header("Wall Clinging")]
   public float wallClingSmearDelay;
-  [SerializeField] private float clingTime;
-  [SerializeField] private int clingDir;
-  [SerializeField] private int lastClingDir;
-  [SerializeField] private GameObject clingingTo;
+  private int lastClingDir;
+  private float clingTime;
 
-  public int bulletDahses;
+  [Header("Bullet Dashing")]
+  public int bulletDashes;
   public float bulletDashForce;
   private int dashes;
-  private Vector2 dashDir;
 
   private Rigidbody2D rb;
-  private float gravScale;
+  private Collider2D c;
+  private Vector2 originalScale;
   private float jumpCooldown = 0;
-
-  private enum GroundType
-  {
-    None,
-    Half,
-    Full
-  }
-  [SerializeField] private GroundType groundType = GroundType.None;
-  [SerializeField] private GameObject standingOn;
 
   void Awake()
   {
     rb = GetComponent<Rigidbody2D>();
-    gravScale = rb.gravityScale;
+    c = GetComponent<Collider2D>();
+    originalScale = transform.localScale;
     jumps = airJumps + 1;
-    dashes = bulletDahses;
+    dashes = bulletDashes;
   }
 
   void OnDrawGizmos()
   {
     Gizmos.color = Color.red;
-    Gizmos.DrawWireCube(new Vector3(transform.position.x, transform.position.y - hitboxOffset, 0), transform.lossyScale * new Vector2(hitboxSize.y, hitboxSize.x));
-    Gizmos.DrawWireCube(new Vector3(transform.position.x + hitboxOffset, transform.position.y, 0), transform.lossyScale * hitboxSize);
-    Gizmos.DrawWireCube(new Vector3(transform.position.x - hitboxOffset, transform.position.y, 0), transform.lossyScale * hitboxSize);
+    Gizmos.DrawWireCube(new Vector3(transform.position.x, transform.position.y - (.5f + feetHitboxSize.y / 2f), 0), transform.lossyScale * feetHitboxSize);
+    Gizmos.DrawWireCube(new Vector3(transform.position.x + (.5f + handHitboxSize.x / 2f), transform.position.y, 0), transform.lossyScale * handHitboxSize);
+    Gizmos.DrawWireCube(new Vector3(transform.position.x - (.5f + handHitboxSize.x / 2f), transform.position.y, 0), transform.lossyScale * handHitboxSize);
   }
 
   void Update()
   {
     movement = new Vector2(Input.GetAxisRaw("Horizontal"), 0);
+    if (originalScale == Vector2.zero && rb.velocity == Vector2.zero)
+    {
+      Debug.Log("LazyLoading the scale");
+      originalScale = transform.localScale;
+    }
     jumpCooldown = Mathf.Max(jumpCooldown - Time.deltaTime, 0);
 
-    feet = Physics2D.BoxCast(transform.position, transform.lossyScale * new Vector2(hitboxSize.y, hitboxSize.x), 0f, Vector2.down, hitboxOffset, LayerMask.GetMask("Ground"));
-    left = Physics2D.BoxCast(transform.position, transform.lossyScale * hitboxSize, 0f, Vector2.left, hitboxOffset, LayerMask.GetMask("Ground"));
-    right = Physics2D.BoxCast(transform.position, transform.lossyScale * hitboxSize, 0f, Vector2.right, hitboxOffset, LayerMask.GetMask("Ground"));
+    CheckGrounded();
+    CheckWalls();
 
-    if (feet.collider?.gameObject != null)
+    float crouch = Input.GetAxisRaw("Vertical");
+    if (canMove) Move(crouch);
+
+    transform.localScale = new Vector2(
+      originalScale.x - Mathf.Min(Mathf.Abs(rb.velocity.y), jumpForce) * squishIntensity.x * originalScale.x / jumpForce,
+      originalScale.y - Mathf.Abs(rb.velocity.x) * squishIntensity.x * originalScale.y / moveSpeed
+    ) / (transform.parent?.lossyScale ?? Vector2.one);
+
+    if (groundType == GroundType.Full)
     {
-      standingOn = feet.collider?.gameObject;
-      groundType = Enum.TryParse(standingOn.tag, true, out groundType) ? groundType : GroundType.None;
-      if (jumpCooldown == 0) jumps = airJumps + 1;
+      Vector2 originalLossyScale = originalScale / (transform.parent?.lossyScale ?? Vector2.one);
+      float targetSize = originalLossyScale.y - squishIntensity.y;
+      crouchAmount = Mathf.MoveTowards(crouchAmount, -crouch, crouchSpeed * Time.deltaTime);
+      transform.localScale = new Vector2(transform.localScale.x, Mathf.Lerp(transform.localScale.y, targetSize, crouchAmount));
     }
-    else
-    {
-      groundType = GroundType.None;
-      standingOn = null;
-    }
+  }
 
-    if (standingOn == null)
-    {
-      clingDir = 0;
-      if (left.collider != null && left.collider.gameObject.tag == "Full" && movement.x < -.5f && lastClingDir != -1) clingDir--;
-      else if (right.collider != null && right.collider.gameObject.tag == "Full" && movement.x > .5f && lastClingDir != 1) clingDir++;
+  void Move(float crouch)
+  {
+    rb.velocity = new Vector2(Mathf.MoveTowards(rb.velocity.x, movement.x * (moveSpeed - (moveSpeed * Math.Max(-crouch, 0) / 2)), acceleration), rb.velocity.y);
 
-      clingingTo = null;
-      if (clingDir != 0) clingingTo = clingDir == -1 ? left.collider.gameObject : right.collider.gameObject;
-
-      if (clingingTo != null)
-      {
-        if (clingTime == wallClingSmearDelay)
-        {
-          rb.velocity = new Vector2(0, 0);
-          rb.gravityScale = 0;
-          dashes = bulletDahses;
-        }
-        else if (clingTime < 0)
-        {
-          rb.gravityScale = gravScale * -clingTime;
-        }
-        if (Input.GetButtonDown("Jump") && clingTime > -1)
-        {
-          jumps++;
-          lastClingDir = clingDir;
-          clingTime = -1;
-          Jump(clingDir);
-        }
-        clingTime = Mathf.Max(clingTime - Time.deltaTime, -1);
-      }
-      else
-      {
-        clingTime = wallClingSmearDelay;
-        rb.gravityScale = gravScale;
-      }
-    }
-    else
+    if (standingOn != null && jumpCooldown == 0)
     {
-      clingDir = 0;
-      lastClingDir = 0;
-      clingingTo = null;
+      jumps = airJumps + 1;
+      dashes = bulletDashes;
       clingTime = wallClingSmearDelay;
-      rb.gravityScale = gravScale;
-      if (jumpCooldown == 0) dashes = bulletDahses;
+      lastClingDir = 0;
     }
 
+    int dir = 0;
+    if (left != null && movement.x < 0) dir--;
+    if (right != null && movement.x > 0) dir++;
+    if (standingOn == null && dir != lastClingDir && dir != 0) WallCling(dir);
+
+    if (Input.GetButtonDown("Jump")) Jump();
+    if (Input.GetButtonDown("Fire2")) BulletDash(Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position);
+
+    if (crouch < 0 && groundType == GroundType.Half) FallThrough(standingOn);
+    if (crouch > 0 && standingOn != null && groundType == GroundType.Half) StartCoroutine(ResetCollision(standingOn));
+  }
+
+  void CheckGrounded()
+  {
+    standingOn = Physics2D.BoxCast(transform.position, transform.lossyScale * feetHitboxSize, 0f, Vector2.down, .5f + feetHitboxSize.y / 2f, LayerMask.GetMask("Ground")).collider;
+    groundType = Enum.TryParse(standingOn?.tag, true, out groundType) ? groundType : GroundType.None;
     if (standingOn?.transform != transform.parent) transform.SetParent(standingOn?.GetComponent<PlatformMove>() ? standingOn.transform : null, true);
+  }
 
-    if (Input.GetButtonDown("Jump") && jumps > 0 && clingingTo == null) Jump();
+  void CheckWalls()
+  {
+    RaycastHit2D[] leftHits = Physics2D.BoxCastAll(transform.position, transform.lossyScale * handHitboxSize, 0f, Vector2.left, .5f + handHitboxSize.x / 2f, LayerMask.GetMask("Ground"), 0, 0);
+    RaycastHit2D[] rightHits = Physics2D.BoxCastAll(transform.position, transform.lossyScale * handHitboxSize, 0f, Vector2.right, .5f + handHitboxSize.x / 2f, LayerMask.GetMask("Ground"), 0, 0);
+    left = null;
+    right = null;
+    foreach (RaycastHit2D hit in leftHits) if (hit.collider.CompareTag("Full")) left = hit.collider;
+    foreach (RaycastHit2D hit in rightHits) if (hit.collider.CompareTag("Full")) right = hit.collider;
+    if (left == null && right == null) clingTime = wallClingSmearDelay;
+  }
 
-    if (Input.GetAxisRaw("Vertical") < 0 && groundType == GroundType.Half) FallThrough(feet.collider);
+  void WallCling(int clingDir)
+  {
+    dashes = bulletDashes;
+    if (clingTime >= 0) rb.velocity = new Vector2(rb.velocity.x, 1);
+    else rb.velocity = new Vector2(rb.velocity.x, Physics2D.gravity.y * -clingTime);
 
-    if (Input.GetAxisRaw("Vertical") > 0 && feet.collider != null && feet.collider.gameObject.tag == "Half") StartCoroutine(ResetCollision(feet.collider));
-
-    if (Input.GetButtonDown("Fire2") && dashes > 0)
-    {
-      Vector2 v = Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position;
-      v.Normalize();
-      BulletDash(v * bulletDashForce);
-    }
-
-    transform.localScale = new Vector2(1 - Mathf.Min(Mathf.Abs(rb.velocity.y), jumpForce) / jumpForce * (squishIntensity.y / 1f), 1 - Mathf.Abs(rb.velocity.x) / moveSpeed * (squishIntensity.x / 1f)) / (transform.parent?.lossyScale ?? Vector2.one);
-
-    if (!clingingTo && canMove) rb.velocity = new Vector2(Mathf.Clamp(rb.velocity.x + movement.x * moveSpeed * acceleration, -moveSpeed, moveSpeed), rb.velocity.y);
-
-    rb.velocity = new Vector2(rb.velocity.x * .8f, rb.velocity.y);
-
-    if (dashDir.sqrMagnitude > 0)
-    {
-      rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * .8f);
-      rb.velocity += dashDir;
-      dashDir *= .98f;
-      if (canMove = dashDir.sqrMagnitude < .1f) dashDir = Vector2.zero;
-    }
-
-    if (standingOn != null && (feet.collider.GetComponent<Rigidbody2D>() ?? false))
-    {
-      rb.velocity += feet.collider.GetComponent<Rigidbody2D>().velocity;
-    }
+    clingTime = Mathf.Max(clingTime - Time.deltaTime, -1);
+    if (clingTime == -1) lastClingDir = clingDir;
   }
 
   void BulletDash(Vector2 dir)
   {
+    int wallDir = 0;
+    if (standingOn == null && Mathf.Abs(movement.x) > .5f)
+    {
+      if (left != null) wallDir--;
+      if (right != null) wallDir++;
+    }
+    lastClingDir = wallDir;
+
+    if (dashes <= 0) return;
     dashes--;
-    if (clingingTo != null) lastClingDir = clingDir;
-    dashDir = dir;
+
+    dir.Normalize();
+    dir *= bulletDashForce;
+    rb.velocity = dir;
+
     jumpCooldown = .1f;
+    ReleaseControls(.1f);
   }
 
-  void Jump(int dir = 0)
+  void Jump()
   {
-    jumps--;
-    rb.gravityScale = gravScale;
-    if (clingingTo) BulletDash(new Vector2(wallJumpForce.x * -dir, wallJumpForce.y));
-    else rb.velocity = new Vector2(rb.velocity.x, jumpForce);
-    jumpCooldown = .2f;
+    int dir = 0;
+    if (Mathf.Abs(movement.x) > .5f)
+    {
+      if (left != null) dir--;
+      if (right != null) dir++;
+    }
+
+    if (dir == 0)
+    {
+      if (jumps <= 0) return;
+      jumps--;
+      rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+    }
+    else if (dir != lastClingDir)
+    {
+      rb.velocity = new Vector2(wallJumpForce.x * -dir, wallJumpForce.y);
+      lastClingDir = dir;
+    }
+
+    jumpCooldown = .1f;
   }
 
   void FallThrough(Collider2D collider, float delay = .2f)
   {
-    Physics2D.IgnoreCollision(GetComponent<Collider2D>(), collider, true);
+    Physics2D.IgnoreCollision(c, collider, true);
     StartCoroutine(ResetCollision(collider, delay));
   }
 
   IEnumerator ResetCollision(Collider2D collider, float delay = 0f)
   {
     yield return new WaitForSeconds(delay);
-    Physics2D.IgnoreCollision(GetComponent<Collider2D>(), collider, false);
+    Physics2D.IgnoreCollision(c, collider, false);
+  }
+
+  void ReleaseControls(float resumeAfter)
+  {
+    canMove = false;
+    Invoke("ResumeControls", resumeAfter);
+  }
+
+  void ResumeControls()
+  {
+    canMove = true;
   }
 }
